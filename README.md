@@ -12,75 +12,88 @@ Event Connect is a robust, scalable RESTful API built with **Spring Boot 3** for
 
 ---
 
-## 🏗 System Architecture
+## 📂 Project Structure
 
-The application follows a standard **Layered Architecture** to ensure separation of concerns:
-
-1.  **Controller Layer (`/controller`)**: Handles HTTP requests, validates input DTOs, and returns standardized JSON responses.
-2.  **Service Layer (`/service`)**: Contains business logic (e.g., preventing double bookings, rate limiting, token generation).
-3.  **Repository Layer (`/repository`)**: Interfaces with the Database using Spring Data JPA.
-4.  **Security Layer (`/security`)**: A filter chain that intercepts requests to validate JWT tokens before they reach the controllers.
-
-### Key Design Decisions
-
-*   **Stateless Authentication**: We use **JWT (JSON Web Tokens)** instead of server-side sessions. This allows the backend to be horizontally scaled easily without "sticky sessions".
-*   **Optimistic Locking**: The `Event` entity has a `@Version` field. This prevents "Double Booking" issues where two users try to buy the last ticket simultaneously. The database ensures only one write succeeds.
-*   **Sliding Window Rate Limiting**: To prevent API abuse, we implemented a custom in-memory rate limiter `RateLimiterService` that restricts users to X bookings per Y seconds.
-*   **Database Indexing**: The `events` table uses `@Index` on `date`, `location`, and `category` fields to ensure high-performance search and filtering.
+```
+src/main/java/com/eventconnect/server
+├── config/             # App Configuration (Security, Beans, Filters)
+│   ├── ApplicationConfig.java      # Beans for AuthManager, PasswordEncoder
+│   ├── JwtAuthenticationFilter.java # Intercepts requests to check Tokens
+│   └── SecurityConfig.java         # Rules (Who can access what URL)
+│
+├── controller/         # API Endpoints (REST Controllers)
+│   ├── AuthController.java
+│   └── ...
+├── dto/                # Data Transfer Objects
+├── entity/             # Database Tables
+├── exception/          # Global Error Handling
+├── repository/         # Database Access
+├── security/           # JWT Logic
+└── service/            # Business Logic
+```
 
 ---
 
-## 🛠 Database Schema
+## 🔐 Authentication Strategy: The "Double Token" System
 
-### 1. `_user` Table
-*   Stores user credentials.
-*   **Why `_user`?**: "user" is a reserved keyword in PostgreSQL, so we escaped it.
-*   **Fields**: `id`, `name`, `email` (Unique), `password` (BCrypt Hash), `role` (USER/ADMIN).
+Our project uses a modern **Access Token + Refresh Token** strategy. This achieves the perfect balance between **User Experience** and **Security**.
 
-### 2. `events` Table
-*   Stores event details and inventory.
-*   **Indexing**: Indexed by `date`, `category`, and `location` for fast `LIKE %...%` searches.
-*   **Concurrency**: Includes `available_seats` and `version` column.
+### 1. The Problem
+*   If a token lasts forever -> **Security Risk** (If stolen, hacker has access forever).
+*   If a token lasts 10 minutes -> **Bad UX** (User takes 15 mins to browse events, tries to book, and gets "Please Login Again").
 
-### 3. `bookings` Table
-*   Links `_user` and `events`.
-*   **Logic**: A user cannot book past events or more tickets than available.
+### 2. The Solution (How we use it)
+We issue TWO tokens at login:
+
+#### A. Access Token (Short-lived: 15 mins)
+*   **Role**: The "Entry Ticket".
+*   **Usage**: Sent in the Header (`Authorization: Bearer xyz`) for every API call (Booking, Browsing).
+*   **Security**: Because it expires quickly, if a hacker intercepts it on public WiFi, they only have access for a few minutes.
+
+#### B. Refresh Token (Long-lived: 24 hours)
+*   **Role**: The "Renewal Ticket".
+*   **Usage**: Kept secretly by the Client. NEVER sent for regular API calls.
+*   **Workflow**: 
+    1.  Client tries to Book Ticket with Access Token.
+    2.  Server returns `403 Forbidden` (Token Expired).
+    3.  Client (JavaScript) catches this error securely.
+    4.  Client calls `/auth/refresh-token` (Future Implementation) sending the **Refresh Token**.
+    5.  Server verifies the Refresh Token.
+    6.  Server issues a **NEW Access Token**.
+    7.  Client retries the Booking request.
+*   **Result**: The user never sees a "Login Again" screen, but security remains high.
+
+---
+
+## 🏗 System Architecture
+
+The application follows a standard **Layered Architecture**:
+1.  **Controller**: Receives HTTP, Validates DTO.
+2.  **Service**: Executes Logic (Rate limit check, Sold out check).
+3.  **Repository**: Runs SQL queries.
+4.  **Database**: Stores data strictly.
+
+### Key Design Decisions
+*   **Optimistic Locking**: `Event` entity has a `@Version` field to prevent "Double Booking".
+*   **Rate Limiting**: Custom in-memory service restricts users to X bookings per Y seconds.
+*   **Database Indexing**: `events` table sends `@Index` on `date`, `category`, and `location`.
 
 ---
 
 ## ⚙️ Setup & Installation
 
-### 1. Prerequisites
-*   Java Development Kit (JDK) 17+
-*   PostgreSQL running on port `5432` (or custom port).
-
-### 2. Configuration
-Create a file named `src/main/resources/application.properties` (if not exists) or use environment variables.
-**Note**: This file is git-ignored for security.
-
+### Configuration
+Create `src/main/resources/application.properties`:
 ```properties
-# standard db config
 spring.datasource.url=jdbc:postgresql://localhost:5433/event_db
 spring.datasource.username=postgres
 spring.datasource.password=YOUR_DB_PASSWORD
-
-# JPA
 spring.jpa.hibernate.ddl-auto=update
-spring.jpa.show-sql=true
 
-# JWT Configuration
-app.jwt.secret=YOUR_VERY_LONG_SECRET_KEY_HERE
-app.jwt.expiration-ms=900000      # 15 mins
-app.jwt.refresh-expiration-ms=86400000  # 24 hours
-
-# Rate Limiting
-app.rate-limit.max-bookings=5
-app.rate-limit.duration-sec=60
-```
-
-### 3. Running the App
-```bash
-./mvnw spring-boot:run
+# Security Secrets
+app.jwt.secret=YOUR_LONG_SECRET_KEY
+app.jwt.expiration-ms=900000
+app.jwt.refresh-expiration-ms=86400000
 ```
 
 ---
@@ -98,7 +111,7 @@ app.rate-limit.duration-sec=60
 
 | Method | Endpoint | Description | Auth Required |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/api/v1/events` | Get paginated events. Params: `keyword`, `page`, `size` | No |
+| `GET` | `/api/v1/events` | Get events. Params: `keyword`, `page`, `size` | No |
 | `GET` | `/api/v1/events/{id}` | Get single event details | No |
 | `POST` | `/api/v1/events` | Create a new event | **Yes (ADMIN)** |
 | `PUT` | `/api/v1/events/{id}` | Update an event | **Yes (ADMIN)** |
@@ -111,24 +124,3 @@ app.rate-limit.duration-sec=60
 | `POST` | `/api/v1/bookings` | Book tickets. Payload: `{ eventId, tickets }` | **Yes (USER)** |
 | `GET` | `/api/v1/bookings/my-bookings` | Get booking history for logged-in user | **Yes (USER)** |
 | `GET` | `/api/v1/bookings/{id}` | Get specific booking receipt | **Yes (Owner)** |
-
----
-
-## 🚨 Error Handling
-
-The API uses a **Global Exception Handler** (`@RestControllerAdvice`) to return consistent JSON errors:
-
-```json
-{
-    "timestamp": "2026-01-10T12:00:00",
-    "status": 400,
-    "error": "Bad Request",
-    "message": "Not enough seats available. Only 2 left."
-}
-```
-
-*   **400 Bad Request**: Validation errors, Sold out, Duplicate email.
-*   **401 Unauthorized**: Missing or Invalid JWT Token.
-*   **403 Forbidden**: Accessing Admin route as User.
-*   **404 Not Found**: Event/Booking ID does not exist.
-*   **429 Too Many Requests**: Rate limit exceeded (Max 5/min).
