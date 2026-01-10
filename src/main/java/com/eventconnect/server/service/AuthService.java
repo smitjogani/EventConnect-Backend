@@ -38,6 +38,7 @@ public class AuthService {
         return AuthResponse.builder()
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)
+                .role(user.getRole().name())
                 .build();
     }
 
@@ -58,6 +59,25 @@ public class AuthService {
         return AuthResponse.builder()
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)
+                .role(user.getRole().name())
                 .build();
+    }
+
+    public AuthResponse refreshToken(String refreshToken) {
+        String userEmail = jwtUtils.extractUsername(refreshToken);
+        if (userEmail != null) {
+            var user = repository.findByEmail(userEmail).orElseThrow();
+            if (jwtUtils.isTokenValid(refreshToken, user)) {
+                var accessToken = jwtUtils.generateToken(user);
+                // We typically return the same refresh token or rotate it. 
+                // For simplicity, let's return the simplified response with the new access token.
+                return AuthResponse.builder()
+                        .accessToken(accessToken)
+                        .refreshToken(refreshToken)
+                        .role(user.getRole().name())
+                        .build();
+            }
+        }
+        throw new RuntimeException("Invalid refresh token");
     }
 }

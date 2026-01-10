@@ -31,4 +31,10 @@ public class AuthController {
     ) {
         return ResponseEntity.ok(service.authenticate(request));
     }
+    @PostMapping("/refresh-token")
+    public ResponseEntity<AuthResponse> refreshToken(
+            @RequestBody com.eventconnect.server.dto.RefreshTokenRequest request
+    ) {
+        return ResponseEntity.ok(service.refreshToken(request.getRefreshToken()));
+    }
 }
