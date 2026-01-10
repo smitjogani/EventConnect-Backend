@@ -13,7 +13,8 @@ import java.math.BigDecimal;
 @Table(name = "events", indexes = {
         @Index(name = "idx_event_date", columnList = "date"),
         @Index(name = "idx_event_category", columnList = "category"),
-        @Index(name = "idx_event_location", columnList = "location")
+        @Index(name = "idx_event_location", columnList = "location"),
+        @Index(name = "idx_event_is_active", columnList = "is_active")
 })
 public class Event {
 
@@ -47,6 +48,13 @@ public class Event {
 
     @Column(length = 2083)
     private String imageUrl;
+
+    @Column(name = "is_active", nullable = false)
+    @Builder.Default
+    private Boolean isActive = true;
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
 
     @Version
     private Long version;
