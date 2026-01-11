@@ -43,9 +43,11 @@ public class SecurityConfig {
     }
 
     @Bean
-    public org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource() {
+    public org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource(
+            @org.springframework.beans.factory.annotation.Value("${cors.allowed-origins}") String allowedOrigins) {
         org.springframework.web.cors.CorsConfiguration configuration = new org.springframework.web.cors.CorsConfiguration();
-        configuration.setAllowedOrigins(java.util.List.of("http://localhost:5173", "http://localhost:3000")); // Allow Frontend Config
+        // Split comma-separated origins from environment variable or properties
+        configuration.setAllowedOrigins(java.util.Arrays.asList(allowedOrigins.split(",")));
         configuration.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(java.util.List.of("*"));
         configuration.setAllowCredentials(true);
