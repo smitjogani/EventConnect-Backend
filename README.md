@@ -1,14 +1,263 @@
 # Event Connect - Backend API
 
-Event Connect is a robust, scalable RESTful API built with **Spring Boot 3** for managing events and ticket bookings. It features secure JWT authentication, role-based access control, optimistic locking for concurrency, and custom rate limiting.
+> RESTful API built with Spring Boot for event management and ticket booking
 
-## 🚀 Tech Stack
+---
 
-*   **Core Framework**: Spring Boot 3.3.0 (Java 17)
-*   **Database**: PostgreSQL 15+
-*   **ORM**: Hibernate / Spring Data JPA
-*   **Security**: Spring Security 6 + JWT (JJWT Library)
-*   **Build Tool**: Maven
+## 📋 Table of Contents
+
+- [Quick Setup](#quick-setup)
+- [Assumptions](#assumptions)
+- [Design Notes](#design-notes)
+- [Authentication Strategy](#authentication-strategy)
+- [Tech Stack](#tech-stack)
+- [API Documentation](#api-documentation)
+- [Database Design](#database-design)
+
+---
+
+## 🚀 Quick Setup
+
+### Prerequisites
+- Java 17+ (JDK)
+- Maven 3.8+
+- PostgreSQL 12+
+
+### Installation
+
+```bash
+# Navigate to Server directory
+cd Server
+
+# Create application.properties
+cat > src/main/resources/application.properties << EOF
+spring.datasource.url=jdbc:postgresql://localhost:5432/event_db
+spring.datasource.username=postgres
+spring.datasource.password=YOUR_PASSWORD
+spring.datasource.driver-class-name=org.postgresql.Driver
+
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=true
+spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect
+
+jwt.secret=your-super-secret-jwt-key-at-least-256-bits-long-please
+jwt.expiration=900000
+jwt.refresh-expiration=604800000
+
+server.port=8080
+EOF
+
+# Install dependencies and run
+mvn clean install
+mvn spring-boot:run
+```
+
+**Access**: http://localhost:8080/api/v1
+
+### Database Setup
+
+```bash
+# Create database
+psql -U postgres
+CREATE DATABASE event_db;
+\q
+
+# Run schema (creates tables + admin user)
+psql -U postgres -d event_db -f schema_dump.sql
+```
+
+**Admin Credentials**:
+- Email: `admin@gmail.com`
+- Password: `password123`
+
+---
+
+## 📝 Assumptions
+
+### Data Assumptions
+- Event dates are stored in UTC
+- Prices are in decimal format (10,2)
+- Email addresses are unique
+- User passwords are BCrypt hashed (strength 10)
+- Event capacity is always positive
+- Available seats never exceed capacity
+
+### Business Logic Assumptions
+- Users can book multiple tickets per event
+- Bookings are final (no cancellation by users)
+- Admin can delete events (soft delete)
+- Deleted events automatically cancel future bookings
+- Past event bookings are preserved for history
+- One currency (INR) for all transactions
+
+### Security Assumptions
+- JWT tokens are used for authentication
+- Access tokens expire in 15 minutes
+- Refresh tokens expire in 7 days
+- HTTPS is used in production
+- CORS is configured for frontend origin
+- All passwords are hashed before storage
+- SQL injection prevented by JPA/Hibernate
+
+### Technical Assumptions
+- PostgreSQL is the database
+- Frontend consumes JSON responses
+- Pagination is required for large datasets
+- Optimistic locking prevents race conditions
+- Database handles referential integrity
+
+---
+
+## 🎯 Design Notes
+
+### Architecture Decisions
+
+#### **1. Layered Architecture**
+**Why**: Clear separation of concerns
+```
+Controller → Service → Repository → Database
+```
+- **Controller**: HTTP handling, validation
+- **Service**: Business logic, transactions
+- **Repository**: Data access
+- **Entity**: Database mapping
+
+**Benefits**:
+- Easy to test
+- Easy to maintain
+- Clear responsibilities
+- Scalable structure
+
+#### **2. JWT Authentication**
+**Why**: Stateless, scalable authentication
+- No session storage needed
+- Works well with microservices
+- Mobile-friendly
+- Horizontal scaling
+
+**Trade-offs**:
+- Token size larger than session ID
+- Cannot revoke tokens easily
+- Refresh token complexity
+
+#### **3. Soft Delete for Events**
+**Why**: Data preservation and audit trail
+- Preserves historical data
+- Allows recovery
+- Maintains referential integrity
+- Audit trail for compliance
+
+**Implementation**:
+```java
+@Column(name = "is_active")
+private Boolean isActive = true;
+
+@Column(name = "deleted_at")
+private LocalDateTime deletedAt;
+```
+
+#### **4. Optimistic Locking**
+**Why**: Prevents double booking
+```java
+@Version
+private Long version;
+```
+- Prevents concurrent updates
+- Better performance than pessimistic locking
+- Handles race conditions
+
+#### **5. Spring Data JPA**
+**Why**: Reduces boilerplate
+- Auto-generates queries
+- Type-safe
+- Pagination support
+- Custom queries when needed
+
+**Trade-offs**:
+- Learning curve
+- Less control over SQL
+- Potential N+1 queries
+
+### Database Design Decisions
+
+#### **Indexes**
+```sql
+CREATE INDEX idx_event_date ON events(date);
+CREATE INDEX idx_event_category ON events(category);
+CREATE INDEX idx_event_is_active ON events(is_active);
+CREATE INDEX idx_users_email ON users(email);
+```
+**Why**: Faster queries on frequently searched columns
+
+#### **Constraints**
+```sql
+CHECK (ticket_price >= 0)
+CHECK (capacity > 0)
+CHECK (available_seats <= capacity)
+```
+**Why**: Data integrity at database level
+
+#### **Foreign Keys**
+```sql
+CONSTRAINT fk_booking_user FOREIGN KEY (user_id) 
+    REFERENCES users(id) ON DELETE CASCADE
+```
+**Why**: Referential integrity, automatic cleanup
+
+### API Design Decisions
+
+#### **RESTful Endpoints**
+- `GET /events` - List events
+- `POST /events` - Create event
+- `PUT /events/{id}` - Update event
+- `DELETE /events/{id}` - Soft delete event
+
+**Why**: Standard, predictable, cacheable
+
+#### **Pagination**
+```
+GET /events?page=0&size=10&keyword=music
+```
+**Why**: Performance, user experience
+
+#### **Error Handling**
+```json
+{
+  "timestamp": "2026-01-11T10:00:00",
+  "status": 400,
+  "error": "Bad Request",
+  "message": "Event not found",
+  "path": "/api/v1/events/999"
+}
+```
+**Why**: Consistent error responses
+
+---
+
+## 🛠️ Tech Stack
+
+### Core Framework
+- **Spring Boot**: 3.3.0
+- **Java**: 17+
+- **Maven**: 3.8+
+
+### Database
+- **PostgreSQL**: 15+
+- **Hibernate/JPA**: ORM
+- **HikariCP**: Connection pooling
+
+### Security
+- **Spring Security**: 6.x
+- **JWT (JJWT)**: 0.11.5
+- **BCrypt**: Password hashing
+
+### Validation
+- **Bean Validation**: JSR-303
+- **Hibernate Validator**: Implementation
+
+### Development Tools
+- **Lombok**: Reduce boilerplate
+- **Spring Boot DevTools**: Hot reload
 
 ---
 
