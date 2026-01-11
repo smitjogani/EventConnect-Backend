@@ -72,6 +72,126 @@ psql -U postgres -d event_db -f schema_dump.sql
 
 ---
 
+## 🌐 Deployment
+
+### Live Production URL
+🔗 **Backend API**: [https://eventconnect-backend-production.up.railway.app](https://eventconnect-backend-production.up.railway.app)
+
+### Deployment Platform: Railway
+
+The backend is deployed on **Railway** with the following configuration:
+
+#### Environment Variables
+Set these in Railway Dashboard → Backend Service → Variables:
+
+```env
+# Database (Auto-provided by Railway PostgreSQL)
+PGHOST=<railway-postgres-host>
+PGPORT=5432
+PGDATABASE=<database-name>
+PGUSER=<database-user>
+PGPASSWORD=<database-password>
+
+# JWT Configuration
+JWT_SECRET=<base64-encoded-secret-key>
+JWT_EXPIRATION=900000
+JWT_REFRESH_EXPIRATION=604800000
+
+# Spring Profile
+SPRING_PROFILES_ACTIVE=prod
+
+# CORS (Frontend URL)
+CORS_ALLOWED_ORIGINS=http://localhost:5173,https://eventconnectbook.netlify.app
+
+# Server Port (Auto-provided by Railway)
+PORT=8080
+```
+
+#### Deployment Steps
+
+1. **Connect GitHub Repository**
+   - Go to [Railway Dashboard](https://railway.app)
+   - Create new project → Deploy from GitHub
+   - Select `EventConnect-Backend` repository
+   - Railway auto-detects Spring Boot and builds with Maven
+
+2. **Add PostgreSQL Database**
+   - In Railway project → Add → Database → PostgreSQL
+   - Railway automatically creates database and provides connection variables
+
+3. **Link Database to Backend**
+   - Go to Backend service → Variables tab
+   - Add variable references:
+     ```
+     PGHOST = ${{Postgres.PGHOST}}
+     PGPORT = ${{Postgres.PGPORT}}
+     PGDATABASE = ${{Postgres.PGDATABASE}}
+     PGUSER = ${{Postgres.PGUSER}}
+     PGPASSWORD = ${{Postgres.PGPASSWORD}}
+     ```
+
+4. **Configure JWT Secret**
+   - Generate a Base64-encoded secret:
+     ```bash
+     echo -n "your-secret-key" | base64
+     ```
+   - Add to Railway variables:
+     ```
+     JWT_SECRET=<base64-encoded-value>
+     ```
+
+5. **Set Production Profile**
+   ```
+   SPRING_PROFILES_ACTIVE=prod
+   ```
+
+6. **Generate Public Domain**
+   - Go to Backend service → Settings → Networking
+   - Click "Generate Domain"
+   - Your API will be available at: `https://<your-service>.up.railway.app`
+
+7. **Populate Database**
+   - Go to Postgres service → Data tab
+   - Run the SQL from `schema_dump.sql` to create tables and admin user
+
+#### Production Configuration
+
+The production configuration is in `src/main/resources/application-prod.properties`:
+
+```properties
+# Database - Uses Railway environment variables
+spring.datasource.url=jdbc:postgresql://${PGHOST}:${PGPORT}/${PGDATABASE}
+spring.datasource.username=${PGUSER}
+spring.datasource.password=${PGPASSWORD}
+
+# JWT
+app.jwt.secret=${JWT_SECRET}
+app.jwt.expiration-ms=${JWT_EXPIRATION}
+app.jwt.refresh-expiration-ms=${JWT_REFRESH_EXPIRATION}
+
+# CORS
+cors.allowed-origins=${CORS_ALLOWED_ORIGINS}
+```
+
+#### Health Check
+
+Test the deployment:
+```bash
+curl https://eventconnect-backend-production.up.railway.app/api/v1/events
+```
+
+Expected response:
+```json
+{
+  "totalItems": 0,
+  "totalPages": 0,
+  "currentPage": 0,
+  "events": []
+}
+```
+
+---
+
 ## 📝 Assumptions
 
 ### Data Assumptions
