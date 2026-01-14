@@ -71,8 +71,6 @@ public class EventService {
                 .capacity(dto.getCapacity())
                 .availableSeats(dto.getCapacity()) // Initially full capacity
                 .imageUrl(dto.getImageUrl())
-                .isActive(true)
-                .version(0L)
                 .build();
         return repository.save(event);
     }
@@ -107,9 +105,8 @@ public class EventService {
             throw new BadRequestException("Event is already deleted");
         }
         
-        // Soft delete the event
+        // Soft delete the event (set isActive to false)
         event.setIsActive(false);
-        event.setDeletedAt(LocalDateTime.now());
         repository.save(event);
         
         // If event date hasn't passed, cancel all active bookings

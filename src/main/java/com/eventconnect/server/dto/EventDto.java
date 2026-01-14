@@ -16,4 +16,11 @@ public class EventDto {
     private Integer capacity;
     private Integer availableSeats;
     private String imageUrl;
+    
+    // Audit fields
+    private LocalDateTime createdAt;
+    private String createdBy;
+    private LocalDateTime modifiedAt;
+    private String modifiedBy;
+    private Boolean isActive;
 }

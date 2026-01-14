@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 import java.math.BigDecimal;
 
 @Data
+@EqualsAndHashCode(callSuper = true)
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
@@ -16,7 +17,7 @@ import java.math.BigDecimal;
         @Index(name = "idx_event_location", columnList = "location"),
         @Index(name = "idx_event_is_active", columnList = "is_active")
 })
-public class Event {
+public class Event extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -48,13 +49,6 @@ public class Event {
 
     @Column(length = 2083)
     private String imageUrl;
-
-    @Column(name = "is_active", nullable = false)
-    @Builder.Default
-    private Boolean isActive = true;
-
-    @Column(name = "deleted_at")
-    private LocalDateTime deletedAt;
 
     @Version
     private Long version;

@@ -14,6 +14,7 @@ import com.eventconnect.server.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import jakarta.servlet.http.HttpServletRequest;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -28,16 +29,25 @@ public class BookingService {
     private final EventRepository eventRepository;
     private final UserRepository userRepository;
     private final RateLimiterService rateLimiterService;
+    private final LocationService locationService;
 
     // --- Create Booking ---
     @Transactional
-    public BookingResponseDto bookTickets(String userEmail, BookingRequest request) {
-        // 1. Rate Limiting
+    public BookingResponseDto bookTickets(String userEmail, BookingRequest request, HttpServletRequest httpRequest) {
+        // 1. Extract IP
+        String clientIp = locationService.extractClientIp(httpRequest);
+
+        // 2. Rate Limiting
         rateLimiterService.checkRateLimit(userEmail);
 
-        // 2. Validate Inputs
+        // 3. Validate Inputs
         if (request.getTickets() <= 0) {
             throw new BadRequestException("Ticket count must be positive.");
+        }
+        
+        // Validate location is provided (mandatory)
+        if (request.getLatitude() == null || request.getLongitude() == null) {
+            throw new BadRequestException("Location permission is required to book tickets. Please enable location access and try again.");
         }
 
         User user = userRepository.findByEmail(userEmail)
@@ -53,22 +63,25 @@ public class BookingService {
             throw new BadRequestException("Not enough seats available. Only " + event.getAvailableSeats() + " left.");
         }
 
-        // 3. Update Inventory
+        // 4. Update Inventory
         event.setAvailableSeats(event.getAvailableSeats() - request.getTickets());
         eventRepository.save(event);
 
-        // 4. Save Booking
+        // 5. Save Booking with IP and Location coordinates
         Booking booking = Booking.builder()
                 .user(user)
                 .event(event)
                 .bookingDate(LocalDateTime.now())
                 .numberOfTickets(request.getTickets())
                 .status(BookingStatus.CONFIRMED)
+                .ipAddress(clientIp)
+                .latitude(request.getLatitude())
+                .longitude(request.getLongitude())
                 .build();
 
         Booking savedBooking = bookingRepository.save(booking);
 
-        // 5. Return DTO (Not Entity)
+        // 6. Return DTO (Not Entity)
         return mapToDto(savedBooking);
     }
 
@@ -103,6 +116,9 @@ public class BookingService {
                 .totalAmount(booking.getEvent().getTicketPrice().multiply(BigDecimal.valueOf(booking.getNumberOfTickets())))
                 .status(booking.getStatus())
                 .bookingDate(booking.getBookingDate())
+                .ipAddress(booking.getIpAddress())
+                .latitude(booking.getLatitude())
+                .longitude(booking.getLongitude())
                 .build();
     }
 }

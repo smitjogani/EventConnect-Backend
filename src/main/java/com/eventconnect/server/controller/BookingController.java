@@ -3,11 +3,13 @@ package com.eventconnect.server.controller;
 import com.eventconnect.server.dto.BookingRequest;
 import com.eventconnect.server.dto.BookingResponseDto;
 import com.eventconnect.server.service.BookingService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import jakarta.servlet.http.HttpServletRequest;
 
 import java.util.List;
 
@@ -21,9 +23,10 @@ public class BookingController {
     @PostMapping
     public ResponseEntity<BookingResponseDto> bookTickets(
             @AuthenticationPrincipal UserDetails userDetails,
-            @RequestBody BookingRequest request
+            @Valid @RequestBody BookingRequest request,
+            HttpServletRequest httpRequest
     ) {
-        return ResponseEntity.ok(bookingService.bookTickets(userDetails.getUsername(), request));
+        return ResponseEntity.ok(bookingService.bookTickets(userDetails.getUsername(), request, httpRequest));
     }
 
     @GetMapping("/my-bookings")

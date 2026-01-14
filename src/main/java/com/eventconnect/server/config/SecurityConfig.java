@@ -44,7 +44,7 @@ public class SecurityConfig {
 
     @Bean
     public org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource(
-            @org.springframework.beans.factory.annotation.Value("${cors.allowed-origins}") String allowedOrigins) {
+            @org.springframework.beans.factory.annotation.Value("${app.cors.allowed-origins}") String allowedOrigins) {
         org.springframework.web.cors.CorsConfiguration configuration = new org.springframework.web.cors.CorsConfiguration();
         // Split comma-separated origins from environment variable or properties
         configuration.setAllowedOrigins(java.util.Arrays.asList(allowedOrigins.split(",")));

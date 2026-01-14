@@ -17,4 +17,14 @@ public class BookingResponseDto {
     private BigDecimal totalAmount;
     private BookingStatus status;
     private LocalDateTime bookingDate;
+    private String ipAddress;
+    private Double latitude;
+    private Double longitude;
+    
+    // Audit fields
+    private LocalDateTime createdAt;
+    private String createdBy;
+    private LocalDateTime modifiedAt;
+    private String modifiedBy;
+    private Boolean isActive;
 }
