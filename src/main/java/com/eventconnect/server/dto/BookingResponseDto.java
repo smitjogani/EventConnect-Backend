@@ -20,6 +20,7 @@ public class BookingResponseDto {
     private String ipAddress;
     private Double latitude;
     private Double longitude;
+    private String location;
     
     // Audit fields
     private LocalDateTime createdAt;

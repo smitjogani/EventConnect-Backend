@@ -43,4 +43,7 @@ public class Booking extends BaseEntity {
 
     @Column(name = "longitude")
     private Double longitude;
+
+    @Column(name = "location", length = 255)
+    private String location;
 }

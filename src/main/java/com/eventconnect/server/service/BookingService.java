@@ -67,7 +67,13 @@ public class BookingService {
         event.setAvailableSeats(event.getAvailableSeats() - request.getTickets());
         eventRepository.save(event);
 
-        // 5. Save Booking with IP and Location coordinates
+        // 5. Get location name from coordinates using reverse geocoding
+        String locationName = locationService.getLocationFromCoordinates(
+            request.getLatitude(), 
+            request.getLongitude()
+        );
+
+        // 6. Save Booking with IP, coordinates, and location name
         Booking booking = Booking.builder()
                 .user(user)
                 .event(event)
@@ -77,6 +83,7 @@ public class BookingService {
                 .ipAddress(clientIp)
                 .latitude(request.getLatitude())
                 .longitude(request.getLongitude())
+                .location(locationName)
                 .build();
 
         Booking savedBooking = bookingRepository.save(booking);
@@ -119,6 +126,7 @@ public class BookingService {
                 .ipAddress(booking.getIpAddress())
                 .latitude(booking.getLatitude())
                 .longitude(booking.getLongitude())
+                .location(booking.getLocation())
                 .build();
     }
 }
